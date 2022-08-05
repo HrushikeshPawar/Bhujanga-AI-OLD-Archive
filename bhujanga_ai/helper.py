@@ -3,9 +3,6 @@ This will contain all the requried helper functions and classes
 """
 # /bhujanga_ai/helper.py
 
-# Required Imports
-from collections import namedtuple
-
 
 # Error Classes
 # Wall Collision Error
@@ -21,8 +18,14 @@ class BodyCollisionError(Exception):
 
 
 # Point Class
-class Point(namedtuple('Point', 'x y')):
+class Point:
     """Class to help in defining the location of Snake's head and body and also the food"""
+
+    # Changing it from namedtuple to normal class
+    def __init__(self, x, y, parent=None):
+        self.x = x
+        self.y = y
+        self.parent = parent
 
     # Adding and Subtracting Points
     # Used in changing the direction of the snake

@@ -70,8 +70,8 @@ class BaseSnake:
         # But check if the food is on the snake's body
         # If so, then place the food at random location again
         while True:
-            self.food = Point(randint(1, self.board_width - 2), randint(1, self.board_height - 2))
-            if self.food not in self.body:
+            self.food = Point(randint(0, self.board_width - 1), randint(0, self.board_height - 1))
+            if self.food not in self.body and self.food != self.head:
                 break
 
     # Move the snake in given direction
@@ -90,11 +90,12 @@ class BaseSnake:
 
         # Check if the given direction is not the opposite of the current direction
         elif direction == -self.direction:
-            # raise ValueError("Direction must be different from the opposite of the current direction")
+            raise ValueError("Direction must be different from the opposite of the current direction")
             pass
 
         else:
             # Update the snake's direction
+            # print('Moving in direction:', direction)
             self.direction = direction
 
             # Update the snake's head position
