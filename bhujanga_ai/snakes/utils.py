@@ -36,10 +36,11 @@ logger = Setup_Logging()
 
 # BASE CLASS FOR FINDERS
 class Finder:
-    def __init__(self, snake: BaseSnake, end: Point):
+    def __init__(self, snake: BaseSnake, end: Point, log: bool = False):
         self.snake = snake
         self.start = snake.head
         self.end = end
+        self.logging = log
         self.visited = list()
         self.path = {}
 
@@ -63,7 +64,8 @@ class Finder:
         for i in range(len(path) - 1):
             directions[path[i + 1]] = path[i] - path[i + 1]
 
-        # logger.info('Got directions')
+        if self.logging:
+            logger.info('Got directions')
         self.path = directions
 
 
@@ -103,7 +105,9 @@ class BFS_Finder(Finder):
             elif point in self.snake.body:
                 allowed_neighbors.remove(point)
 
-        # logger.info(f'Neighbor for point {current} : {allowed_neighbors}')
+        if self.logging:
+            logger.debug(f'Neighbor for point {current} : {allowed_neighbors}')
+
         return allowed_neighbors
 
     def find_path(self, engine=None):
@@ -114,9 +118,9 @@ class BFS_Finder(Finder):
 
         # Mark the start node as visited and enqueue it
         self.queue.append(self.start)
-        # # print('initial queue', self.queue)
-        # logger.info(f'Initial queue - {self.queue}')
-        cnt = 0
+
+        if self.logging:
+            logger.debug(f'Initial queue - {self.queue}')
 
         while self.queue:
             if engine:
@@ -124,14 +128,17 @@ class BFS_Finder(Finder):
 
             # Dequeue a vertex from queue
             current: Point = self.queue.popleft()
-            # logger.info(f'Current point: ({current.x}, {current.y})')
+            if self.logging:
+                logger.debug(f'Current point: ({current.x}, {current.y})')
 
             # Get all adjacent vertices of the dequeued vertex
             if current not in self.visited:
                 self.visited.append(current)
 
                 # Get neighbours from grid
-                # logger.info(f'Getting neighbors for point: {current}')
+                if self.logging:
+                    logger.debug(f'Getting neighbors for point: {current}')
+
                 for neighbour in self.get_neighbors(current):
                     neighbour: Point
                     if neighbour not in self.visited:
@@ -140,11 +147,12 @@ class BFS_Finder(Finder):
 
                         if neighbour == self.end:
                             self.end = neighbour
-                            # logger.info('Found path')
+
+                            if self.logging:
+                                logger.debug('Found path')
+
                             self.get_path_directions()
                             return
 
-            # logger.info(f'while loop running - Total visited{len(self.visited)}')
-            if cnt == 10:
-                quit()
-            # # print(self.visited)
+            if self.logging:
+                logger.debug(f'While loop running - Total visited{len(self.visited)}')

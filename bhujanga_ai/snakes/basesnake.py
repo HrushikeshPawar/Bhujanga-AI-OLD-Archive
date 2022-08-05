@@ -19,11 +19,12 @@ DIRECTIONS = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT]
 class BaseSnake:
     """The base snake class"""
 
-    def __init__(self, height : int, width : int, random_init : bool = False) -> None:
+    def __init__(self, height : int, width : int, random_init : bool = False, log : bool = False) -> None:
 
         # Initialize the snake's environment (board)
         self.board_width = width
         self.board_height = height
+        self.log = log
 
         # Initialize the snake's initial position (snake's head)
         # Here we can take two approaches:

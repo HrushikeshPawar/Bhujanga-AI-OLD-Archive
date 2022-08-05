@@ -8,6 +8,7 @@ from curses import KEY_RIGHT, KEY_LEFT, KEY_DOWN, KEY_UP
 import logging
 import os
 import pygame
+# from typing import Union
 # from datetime import datetime
 
 # Import various helper and agent classes
@@ -19,7 +20,7 @@ from helper import BodyCollisionError, Direction, WallCollisionError
 # Required Constants
 B_HEIGHT = 10
 B_WIDTH = 10
-CURSES = True
+CURSES = False
 PYGAME = not CURSES
 LOGGING = True
 
@@ -77,7 +78,7 @@ if PYGAME:
 
     # Define Constants
     BLOCKSIZE   = 20
-    SPEED       = 20
+    SPEED       = 50
     BORDER      = 3
 
     # Colors
@@ -100,12 +101,13 @@ class Game:
 
     def __init__(
         self,
-        height : int,
-        width : int,
+        height : int = B_HEIGHT,
+        width : int = B_WIDTH,
         random_init : bool = False,
         agent : BaseSnake = BaseSnake,
-        log : bool = False,
-        board : curses.newwin = None,
+        log : bool = LOGGING,
+        # board : Union(curses.newwin, pygame.display) = None,
+        board : curses.newwin or pygame.display = None,
     ) -> None:
         """Initialize the game"""
 
@@ -115,6 +117,8 @@ class Game:
 
         # Initialize the game's agent
         self.agent = agent(height, width, random_init)
+        self.agent : BaseSnake
+        self.agent.log = log
 
         # Initialize the game's logging
         self.logging = log
@@ -132,7 +136,30 @@ class Game:
 
         # Initialize the board
         self.board = board
-        self.timeout = TIMEOUT
+
+        # Initialize the curses board
+        if CURSES:
+            # Set the game speed
+            self.board.timeout(TIMEOUT)
+            self.timeout = TIMEOUT
+
+            # Activate keypad mode
+            self.board.keypad(1)
+
+            # Draw the game board border
+            self.board.border(0)
+
+        # Initialize the pygame board
+        if PYGAME:
+
+            # Set the game display
+            self.display = pygame.display.set_mode((self.board_width * BLOCKSIZE, self.board_height * BLOCKSIZE))
+
+            # Set the game caption
+            pygame.display.set_caption('Bhujanga-AI - Snake Game Solver')
+
+            # Game clock
+            self.clock = pygame.time.Clock()
 
     # Rendering the Game Board on terminal using curses
     def render_curses(self) -> None:
@@ -161,6 +188,56 @@ class Game:
         # Refresh the board
         self.board.refresh()
 
+    # Rendering the Game Board using pygame
+    def render_pygame(self) -> None:
+        """
+        Update the UI
+        """
+        # Clear the screen
+        self.display.fill(BLACK)
+
+        # Draw the food
+        pygame.draw.rect(self.display, RED, (self.agent.food.x * BLOCKSIZE, self.agent.food.y * BLOCKSIZE, BLOCKSIZE - BORDER, BLOCKSIZE - BORDER))
+
+        # Draw the snake
+        pygame.draw.rect(self.display, GREY, (self.agent.head.x * BLOCKSIZE, self.agent.head.y * BLOCKSIZE, BLOCKSIZE - BORDER, BLOCKSIZE - BORDER))
+        pygame.draw.rect(self.display, WHITE, (self.agent.head.x * BLOCKSIZE + 4, self.agent.head.y * BLOCKSIZE + 4, 12 - BORDER, 12 - BORDER))
+        try:
+            for point in list(self.agent.body)[:-1]:
+                pygame.draw.rect(self.display, BLUE, (point.x * BLOCKSIZE, point.y * BLOCKSIZE, BLOCKSIZE - BORDER, BLOCKSIZE - BORDER))
+                pygame.draw.rect(self.display, BLUE2, (point.x * BLOCKSIZE + 4, point.y * BLOCKSIZE + 4, 12 - BORDER, 12 - BORDER))
+            point = list(self.agent.body)[-1]
+            pygame.draw.rect(self.display, GREEN, (point.x * BLOCKSIZE, point.y * BLOCKSIZE, BLOCKSIZE - BORDER, BLOCKSIZE - BORDER))
+            pygame.draw.rect(self.display, GREEN2, (point.x * BLOCKSIZE + 4, point.y * BLOCKSIZE + 4, 12 - BORDER, 12 - BORDER))
+        except IndexError:
+            pass
+
+        # Draw the score
+        text = font.render(f'Score: {self.agent.score}', True, WHITE)
+        self.display.blit(text, (1, 1))
+
+        # Update the display
+        pygame.display.update()
+
+    # Printing the game details
+    def __str__(self):
+        """Print the game details"""
+        details = '\n\nGame Details\n\n'
+
+        # Board Size
+        details += 'Board Size: ' + str(self.board_width) + 'x' + str(self.board_height) + '\n'
+
+        # Snake details
+        details += 'Snake Details: ' + str(self.agent)
+
+        # Drawing engine
+        if CURSES:
+            details += '\nDrawing Engine: Curses\n'
+        elif PYGAME:
+            details += '\nDrawing Engine: PyGame\n'
+
+        return details
+
 
 # The Main Initialization Function
 def main():
@@ -180,17 +257,8 @@ def main():
         # Create the game board window
         board = curses.newwin(B_HEIGHT, B_WIDTH, 0, 0)
 
-        # Set the game speed
-        board.timeout(TIMEOUT)
-
-        # Activate keypad mode
-        board.keypad(1)
-
-        # Draw the game board border
-        board.border(0)
-
         # Initialize the Game
-        game = Game(B_HEIGHT, B_WIDTH, random_init=False, agent=BFS_Basic_Snake, log=LOGGING, board=board)
+        game = Game(agent=BFS_Basic_Snake, board=board)
         if game.logging:
             logger.info('Curses is selected as the drawing engine')
             logger.info("Game has been initialized")
@@ -199,28 +267,34 @@ def main():
     if PYGAME:
 
         # Initialize the Game
-        game = Game(B_HEIGHT * BLOCKSIZE, B_WIDTH * BLOCKSIZE, random_init=False, agent=BFS_Basic_Snake, log=LOGGING, board=board)
+        game = Game(random_init=False, agent=BFS_Basic_Snake, log=LOGGING)
         if game.logging:
             logger.info('PyGame is selected as the drawing engine')
             logger.info("Game has been initialized")
 
+    if game.logging:
+        logger.info(str(game))
+
     # The main game loop
     while True:
-        # print(time())
 
-        # Clear the screen and render the game board
-        game.board.clear()
-        game.board.border(0)
+        if CURSES:
+            # Clear the screen and render the game board
+            game.board.clear()
+            game.board.border(0)
 
-        # Render the game board
-        game.render_curses()
+            # Render the game board
+            try:
+                game.render_curses()
+            except curses.ERR:
+                pass
 
-        # Get the key pressed by the user
-        key = game.board.getch()
+            # Get the key pressed by the user
+            key = game.board.getch()
 
-        # Check if the user pressed the exit key
-        if key == ord('q'):
-            break
+            # Check if the user pressed the exit key
+            if key == ord('q'):
+                break
 
         # Check if the user pressed the arrow key
         # If yes then update the direction of the snake
@@ -236,22 +310,37 @@ def main():
 
             # Move the snake
             if game.agent.finder.path == {}:
-                # logger.info("Finding the path")
-                # logger.info(f"Start: {(game.agent.head.x, game.agent.head.y)}, Goal: {game.agent.food.x, game.agent.food.y}")
+
+                if game.logging:
+                    logger.debug("Finding the path")
+                    logger.debug(f"Start: {(game.agent.head.x, game.agent.head.y)}, Goal: {game.agent.food.x, game.agent.food.y}")
+
                 game.agent.finder.start = game.agent.head
                 game.agent.finder.end = game.agent.food
-                game.agent.finder.find_path()
-                # logger.info("Path found - " + str(game.agent.finder.path))
+
+                if PYGAME:
+                    game.agent.finder.find_path(engine=pygame)
+                else:
+                    game.agent.finder.find_path()
+
+                if game.logging:
+                    logger.debug("Path found - " + str(game.agent.finder.path))
                 if game.agent.finder.path == {}:
-                    # logger.info('Path Not found!')
+                    if game.logging:
+                        logger.debug('Path Not found!')
                     break
             else:
                 direction = game.agent.finder.path[game.agent.head]
-                # print('Got direction: ', direction)
-                # logger.info('Moving in direction: ', direction)
+
+                if game.logging:
+                    logger.debug(f'Moving in direction: {direction}')
                 game.agent.finder.path.pop(game.agent.head)
                 game.agent.move(direction)
-                # logger.info('Path length: ', len(game.agent.finder.path))
+
+            if PYGAME:
+                pygame.event.get()
+                game.render_pygame()
+                game.clock.tick(SPEED)
 
         except WallCollisionError:
             print("Wall Collision Error")
@@ -262,9 +351,11 @@ def main():
             break
 
     # End the curses session
-    curses.endwin()
-    print("Game Over")
-    print('Your score is: ' + str(game.agent.score))
+    if CURSES:
+        curses.endwin()
+
+    if game.logging:
+        logger.info(f'Game Over - Your score is: {game.agent.score}')
 
 
 # Run the main function
