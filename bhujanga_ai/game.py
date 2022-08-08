@@ -9,12 +9,11 @@ import logging
 import os
 import pygame
 import configparser
-# from typing import Union
-# from datetime import datetime
+from time import perf_counter
 
 # Import various helper and agent classes
 from snakes.basesnake import BaseSnake
-from snakes.pathfinding_snakes import BFS_Basic_Snake
+from snakes.pathfinding_snakes import BFS_Basic_Snake, BFS_LookAhead_Snake
 from helper import BodyCollisionError, Direction, WallCollisionError
 
 
@@ -29,6 +28,7 @@ CURSES = config['GAME - BASIC'].getboolean('CURSES')
 PYGAME = not CURSES
 LOGGING = config['GAME - BASIC'].getboolean('LOGGING')
 DEBUG = config['GAME - BASIC'].getboolean('DEBUG')
+LAP_TIME = int(config['GAME - BASIC']['LAP_TIME'])
 
 
 # Required Dicts
@@ -132,10 +132,8 @@ class Game:
         self.board_height = height
 
         # Initialize the game's agent
-        self.agent = agent(height, width, random_init)
+        self.agent = agent(height, width, random_init, log, debug)
         self.agent : BaseSnake
-        self.agent.logging = log
-        self.agent.debug = debug
 
         # Initialize the game's logging
         self.logging = log
@@ -260,6 +258,8 @@ class Game:
 # The Main Initialization Function
 def main():
 
+    agent = agents[1]
+
     # Initialize the Curse Drawing Engine
     if CURSES:
 
@@ -276,7 +276,7 @@ def main():
         board = curses.newwin(B_HEIGHT, B_WIDTH, 0, 0)
 
         # Initialize the Game
-        game = Game(agent=BFS_Basic_Snake, board=board)
+        game = Game(agent=agent, board=board)
         if game.logging:
             logger.info('Curses is selected as the drawing engine')
             logger.info("Game has been initialized")
@@ -285,7 +285,7 @@ def main():
     if PYGAME:
 
         # Initialize the Game
-        game = Game(random_init=False, agent=BFS_Basic_Snake, log=LOGGING)
+        game = Game(random_init=False, agent=agent, log=LOGGING)
         if game.logging:
             logger.info('PyGame is selected as the drawing engine')
             logger.info("Game has been initialized")
@@ -294,89 +294,108 @@ def main():
         logger.info(str(game))
 
     # The main game loop
-    while True:
+    lap_time = perf_counter()
+    score = 0
+    try:
+        while True:
 
-        if CURSES:
-            # Clear the screen and render the game board
-            game.board.clear()
-            game.board.border(0)
+            if CURSES:
+                # Clear the screen and render the game board
+                game.board.clear()
+                game.board.border(0)
 
-            # Render the game board
+                # Render the game board
+                try:
+                    game.render_curses()
+                except Exception as e:
+                    logger.error(e)
+                    pass
+
+                # Get the key pressed by the user
+                key = game.board.getch()
+
+                # Check if the user pressed the exit key
+                if key == ord('q'):
+                    break
+
+            # Check if the user pressed the arrow key
+            # If yes then update the direction of the snake
+            # Check for collisions
             try:
-                game.render_curses()
-            except Exception as e:
-                logger.error(e)
-                pass
+                # if key in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
+                #     game.agent.move(key_to_direction[key])
 
-            # Get the key pressed by the user
-            key = game.board.getch()
+                # # If no direction key is pressed, continue moving in the same direction
+                # elif key == -1:
+                #     # print(game.agent)
+                #     game.agent.move(game.agent.direction)
 
-            # Check if the user pressed the exit key
-            if key == ord('q'):
+                # Move the snake
+                if not game.agent.finder.path_exists():
+
+                    if game.debug:
+                        logger.debug("Finding the path")
+                        logger.debug(f"Start: {(game.agent.head.x, game.agent.head.y)}, Goal: {game.agent.food.x, game.agent.food.y}")
+
+                    # Set the finder to the current state of the game
+                    game.agent.finder.start = game.agent.head
+                    game.agent.finder.end = game.agent.food
+
+                    # Find the path
+                    game.agent.find_path()
+
+                    if not game.agent.finder.path_exists():
+                        if game.debug:
+                            logger.debug('Path Not found!')
+                        break
+                    else:
+                        if game.debug:
+                            logger.debug(f"Path found from {game.agent.finder.start} to {game.agent.finder.end}- " + str(game.agent.finder.path))
+
+                else:
+                    direction = game.agent.finder.path[game.agent.head]
+
+                    if game.debug:
+                        logger.debug(f'Moving from {game.agent.head} in direction: {direction}')
+                    game.agent.finder.path.pop(game.agent.head)
+                    game.agent.move(direction)
+
+                if PYGAME:
+                    pygame.event.get()
+                    game.render_pygame()
+                    game.clock.tick(SPEED)
+
+            except WallCollisionError:
+                print("Wall Collision Error")
                 break
 
-        # Check if the user pressed the arrow key
-        # If yes then update the direction of the snake
-        # Check for collisions
-        try:
-            # if key in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
-            #     game.agent.move(key_to_direction[key])
+            except BodyCollisionError:
+                print("Body Collision Error")
+                break
 
-            # # If no direction key is pressed, continue moving in the same direction
-            # elif key == -1:
-            #     # print(game.agent)
-            #     game.agent.move(game.agent.direction)
+            if game.agent.score > score:
+                score = game.agent.score
+                lap_time = perf_counter()
 
-            # Move the snake
-            if game.agent.finder.path == {}:
+            if perf_counter() - lap_time > LAP_TIME:
+                raise KeyboardInterrupt
 
-                if game.debug:
-                    logger.debug("Finding the path")
-                    logger.debug(f"Start: {(game.agent.head.x, game.agent.head.y)}, Goal: {game.agent.food.x, game.agent.food.y}")
+        # End the curses session
+        if CURSES:
+            curses.endwin()
 
-                # Set the finder to the current state of the game
-                game.agent.finder.start = game.agent.head
-                game.agent.finder.end = game.agent.food
+        if game.logging:
+            logger.info(f'Game Over - Your score is: {game.agent.score}')
 
-                # Find the path
-                game.agent.find_path()
-
-                if game.debug:
-                    logger.debug("Path found - " + str(game.agent.finder.path))
-                if game.agent.finder.path == {}:
-                    if game.debug:
-                        logger.debug('Path Not found!')
-                    break
-            else:
-                direction = game.agent.finder.path[game.agent.head]
-
-                if game.debug:
-                    logger.debug(f'Moving in direction: {direction}')
-                game.agent.finder.path.pop(game.agent.head)
-                game.agent.move(direction)
-
-            if PYGAME:
-                pygame.event.get()
-                game.render_pygame()
-                game.clock.tick(SPEED)
-
-        except WallCollisionError:
-            print("Wall Collision Error")
-            break
-
-        except BodyCollisionError:
-            print("Body Collision Error")
-            break
-
-    # End the curses session
-    if CURSES:
-        curses.endwin()
-
-    if game.logging:
-        logger.info(f'Game Over - Your score is: {game.agent.score}')
+    except KeyboardInterrupt:
+        if CURSES:
+            curses.endwin()
+        if game.logging:
+            logger.info(f'Game Over - Your score is: {game.agent.score}')
 
 
 # Run the main function
 if __name__ == "__main__":
     logger = Setup_Logging()
+    agents = [BFS_Basic_Snake, BFS_LookAhead_Snake]
     main()

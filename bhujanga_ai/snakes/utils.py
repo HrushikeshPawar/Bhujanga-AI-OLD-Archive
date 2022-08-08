@@ -4,7 +4,7 @@ from helper import Point, Direction
 import logging
 import os
 import configparser
-
+from copy import deepcopy
 
 # Setup Config File
 config = configparser.ConfigParser()
@@ -80,15 +80,29 @@ class Finder:
         for i in range(len(path) - 1):
             directions[path[i + 1]] = path[i] - path[i + 1]
 
-        if self.debug:
-            logger.debug('Got directions')
-        self.path = directions
+        # Check if path is empty
+        if len(directions) == 0:
+            if self.debug:
+                logger.debug('Path is empty')
+        else:
+            if self.debug:
+                logger.debug('Got directions')
+            self.path = directions
+
+    def copy(self) -> 'Finder':
+        # Create a deep copy of the finder
+        return deepcopy(self)
+
+    def path_exists(self) -> bool:
+        if self.path:
+            return len(self.path) > 0
+        return False
 
 
 # BREADTH FIRST SEARCH
 class BFS_Finder(Finder):
 
-    def get_neighbors(self, current: Point) -> list:
+    def get_neighbors(self, current: Point, exclude_tail: bool = False) -> list:
 
         # Board range
         pos = current.copy()
@@ -106,6 +120,9 @@ class BFS_Finder(Finder):
         allowed_neighbors = [x for x in neighbors]
         for point in neighbors:
 
+            if self.debug and point == self.snake.tail:
+                logger.debug('Tail is a neighbor to point {}'.format(current))
+
             #  Remove if out of bounds
             if point.x not in x_range:
                 allowed_neighbors.remove(point)
@@ -118,6 +135,12 @@ class BFS_Finder(Finder):
                 allowed_neighbors.remove(point)
 
             # Remove if it is in snakes body
+            elif exclude_tail:
+                body = deepcopy(self.snake.body)
+                body.pop()
+                if point in body:
+                    allowed_neighbors.remove(point)
+
             elif point in self.snake.body:
                 allowed_neighbors.remove(point)
 
@@ -126,7 +149,13 @@ class BFS_Finder(Finder):
 
         return allowed_neighbors
 
-    def find_path(self):
+    def find_path(self, exclude_tail: bool = False) -> None:
+
+        if self.debug:
+            logger.debug('Starting BFS')
+            logger.debug(f'Finding path from Start : {self.start} to End : {self.end}')
+            logger.debug(f'Excluding Tail : {exclude_tail}')
+            logger.debug(f'Walls are : {list(self.snake.body)[:-1]}')
 
         # Initialize the queue and visited list
         self.queue = deque()
@@ -153,7 +182,7 @@ class BFS_Finder(Finder):
                 if self.debug:
                     logger.debug(f'Getting neighbors for point: {current}')
 
-                for neighbour in self.get_neighbors(current):
+                for neighbour in self.get_neighbors(current, exclude_tail):
                     neighbour: Point
                     if neighbour not in self.visited:
                         neighbour.parent = current
@@ -169,4 +198,4 @@ class BFS_Finder(Finder):
                             return
 
             if self.debug:
-                logger.debug(f'While loop running - Total visited{len(self.visited)}')
+                logger.debug(f'While loop running - Total visited - {len(self.visited)}')
