@@ -8,6 +8,7 @@ from curses import KEY_RIGHT, KEY_LEFT, KEY_DOWN, KEY_UP
 import logging
 import os
 import pygame
+import configparser
 # from typing import Union
 # from datetime import datetime
 
@@ -17,12 +18,17 @@ from snakes.pathfinding_snakes import BFS_Basic_Snake
 from helper import BodyCollisionError, Direction, WallCollisionError
 
 
+# Setup Config File
+config = configparser.ConfigParser()
+config.read(r'bhujanga_ai\settings.ini')
+
 # Required Constants
-B_HEIGHT = 10
-B_WIDTH = 10
-CURSES = False
+B_HEIGHT = int(config['GAME - BASIC']['HEIGHT'])
+B_WIDTH = int(config['GAME - BASIC']['WIDTH'])
+CURSES = config['GAME - BASIC'].getboolean('CURSES')
 PYGAME = not CURSES
-LOGGING = True
+LOGGING = config['GAME - BASIC'].getboolean('LOGGING')
+DEBUG = config['GAME - BASIC'].getboolean('DEBUG')
 
 
 # Required Dicts
@@ -41,20 +47,29 @@ def Setup_Logging():
 
     formatter = logging.Formatter('[%(asctime)s] : %(name)s : %(levelname)s : %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-    LOG_PATH = os.path.join(r"""C:\Users\hrush\OneDrive - iitgn.ac.in\Desktop\Projects\Bhujanga-AI""", 'Logs.log')
+    LOG_PATH = config['LOGGING']['LOGGING_PATH']
+    DEBUG_PATH = config['LOGGING']['DEBUG_PATH']
 
     # Check if file exists or create one
     if not os.path.exists(LOG_PATH):
         open(LOG_PATH, 'w').close()
 
-    file_handler = logging.FileHandler(LOG_PATH)
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
+    if not os.path.exists(DEBUG_PATH):
+        open(DEBUG_PATH, 'w').close()
+
+    file_handler_LOG = logging.FileHandler(LOG_PATH)
+    file_handler_LOG.setLevel(logging.INFO)
+    file_handler_LOG.setFormatter(formatter)
+
+    file_handler_DEBUG = logging.FileHandler(DEBUG_PATH)
+    file_handler_DEBUG.setLevel(logging.DEBUG)
+    file_handler_DEBUG.setFormatter(formatter)
 
     stream = logging.StreamHandler()
     stream.setFormatter(formatter)
 
-    logger.addHandler(file_handler)
+    logger.addHandler(file_handler_LOG)
+    logger.addHandler(file_handler_DEBUG)
     logger.addHandler(stream)
 
     return logger
@@ -62,11 +77,11 @@ def Setup_Logging():
 
 # Setup for Curses
 if CURSES:
-    TIMEOUT = 10  # The speed of the game (In curses, the timeout is in milliseconds, higher is slower)
-    HEAD_CHR = 'H'
-    BODY_CHR = '#'
-    TAIL_CHR = 'T'
-    FOOD_CHR = 'O'
+    TIMEOUT = int(config['CURSES']['TIMEOUT'])
+    HEAD_CHR = config['CURSES']['HEAD_CHR']
+    BODY_CHR = config['CURSES']['BODY_CHR']
+    TAIL_CHR = config['CURSES']['TAIL_CHR']
+    FOOD_CHR = config['CURSES']['FOOD_CHR']
 
 
 # Setup for Pygame
@@ -74,25 +89,25 @@ if PYGAME:
 
     # Initialize the pygame library
     pygame.init()
-    font = pygame.font.Font('Lora-Regular.ttf', 20)
+    font = pygame.font.Font(config['PYGAME']['FONT'], 20)
 
     # Define Constants
-    BLOCKSIZE   = 20
-    SPEED       = 50
-    BORDER      = 3
+    BLOCKSIZE   = int(config['PYGAME']['BLOCKSIZE'])
+    SPEED       = int(config['PYGAME']['SPEED'])
+    BORDER      = int(config['PYGAME']['BORDER'])
 
     # Colors
-    BLACK       = (0, 0, 0)
-    GREY        = (150, 150, 150)
-    WHITE       = (255, 255, 255)
-    RED         = (255, 0, 0)
-    GREEN       = (0, 255, 0)
-    GREEN2      = (100, 255, 0)
-    BLUE        = (0, 0, 255)
-    BLUE2       = (0, 100, 255)
+    BLACK       = tuple(map(int, config['PYGAME']['BLACK'].split()))
+    GREY        = tuple(map(int, config['PYGAME']['GREY'].split()))
+    WHITE       = tuple(map(int, config['PYGAME']['WHITE'].split()))
+    RED         = tuple(map(int, config['PYGAME']['RED'].split()))
+    GREEN       = tuple(map(int, config['PYGAME']['GREEN'].split()))
+    GREEN2      = tuple(map(int, config['PYGAME']['GREEN2'].split()))
+    BLUE        = tuple(map(int, config['PYGAME']['BLUE'].split()))
+    BLUE2       = tuple(map(int, config['PYGAME']['BLUE2'].split()))
 
     # DIRS
-    IMG_DIR     = 'Pics'
+    IMG_DIR     = config['PYGAME']['IMG_DIR']
 
 
 # The Game Class
@@ -106,6 +121,7 @@ class Game:
         random_init : bool = False,
         agent : BaseSnake = BaseSnake,
         log : bool = LOGGING,
+        debug : bool = DEBUG,
         # board : Union(curses.newwin, pygame.display) = None,
         board : curses.newwin or pygame.display = None,
     ) -> None:
@@ -118,10 +134,12 @@ class Game:
         # Initialize the game's agent
         self.agent = agent(height, width, random_init)
         self.agent : BaseSnake
-        self.agent.log = log
+        self.agent.logging = log
+        self.agent.debug = debug
 
         # Initialize the game's logging
         self.logging = log
+        self.debug = debug
 
         # Initialize the game's initial position (snake's head)
         # Here we can take two approaches:
@@ -286,7 +304,8 @@ def main():
             # Render the game board
             try:
                 game.render_curses()
-            except curses.ERR:
+            except Exception as e:
+                logger.error(e)
                 pass
 
             # Get the key pressed by the user
@@ -311,28 +330,27 @@ def main():
             # Move the snake
             if game.agent.finder.path == {}:
 
-                if game.logging:
+                if game.debug:
                     logger.debug("Finding the path")
                     logger.debug(f"Start: {(game.agent.head.x, game.agent.head.y)}, Goal: {game.agent.food.x, game.agent.food.y}")
 
+                # Set the finder to the current state of the game
                 game.agent.finder.start = game.agent.head
                 game.agent.finder.end = game.agent.food
 
-                if PYGAME:
-                    game.agent.finder.find_path(engine=pygame)
-                else:
-                    game.agent.finder.find_path()
+                # Find the path
+                game.agent.find_path()
 
-                if game.logging:
+                if game.debug:
                     logger.debug("Path found - " + str(game.agent.finder.path))
                 if game.agent.finder.path == {}:
-                    if game.logging:
+                    if game.debug:
                         logger.debug('Path Not found!')
                     break
             else:
                 direction = game.agent.finder.path[game.agent.head]
 
-                if game.logging:
+                if game.debug:
                     logger.debug(f'Moving in direction: {direction}')
                 game.agent.finder.path.pop(game.agent.head)
                 game.agent.move(direction)
