@@ -23,17 +23,12 @@ config.read(r'bhujanga_ai\settings.ini')
 # Required Constants
 B_HEIGHT = int(config['GAME - BASIC']['HEIGHT'])
 B_WIDTH = int(config['GAME - BASIC']['WIDTH'])
-CURSES = config['GAME - BASIC'].getboolean('CURSES')
-PYGAME = not CURSES
+PYGAME = config['GAME - BASIC'].getboolean('PYGAME')
 LOGGING = config['GAME - BASIC'].getboolean('LOGGING')
 DEBUG = config['GAME - BASIC'].getboolean('DEBUG')
 LAP_TIME = int(config['GAME - BASIC']['LAP_TIME'])
 MEDIA_DIR = config['GAME - BASIC']['MEDIA_DIR']
 
-# PYGAME Setup
-# Initialize the pygame library
-# pygame.init()
-# font = pygame.font.Font(config['PYGAME']['FONT'], 20)
 
 # Define Constants
 BLOCKSIZE   = int(config['PYGAME']['BLOCKSIZE'])

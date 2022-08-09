@@ -3,8 +3,6 @@
 
 
 # Import the required modules
-import curses
-from curses import KEY_RIGHT, KEY_LEFT, KEY_DOWN, KEY_UP
 import logging
 import os
 import configparser
@@ -13,7 +11,7 @@ from time import perf_counter
 # Import various helper and agent classes
 from snakes.basesnake import BaseSnake
 from snakes.pathfinding_snakes import BFS_Basic_Snake, BFS_LookAhead_Snake, BFS_LookAhead_LongerPath_Snake
-from helper import BodyCollisionError, Direction, WallCollisionError
+from helper import BodyCollisionError, WallCollisionError
 
 
 # Setup Config File
@@ -23,21 +21,11 @@ config.read(r'bhujanga_ai\settings.ini')
 # Required Constants
 B_HEIGHT = int(config['GAME - BASIC']['HEIGHT'])
 B_WIDTH = int(config['GAME - BASIC']['WIDTH'])
-CURSES = False  # config['GAME - BASIC'].getboolean('CURSES')
-PYGAME = False  # not CURSES
+PYGAME = config['GAME - BASIC'].getboolean('PYGAME')
 LOGGING = config['GAME - BASIC'].getboolean('LOGGING')
 DEBUG = config['GAME - BASIC'].getboolean('DEBUG')
 LAP_TIME = int(config['GAME - BASIC']['LAP_TIME'])
 MEDIA_DIR = config['GAME - BASIC']['MEDIA_DIR']
-
-
-# Required Dicts
-key_to_direction = {
-    KEY_LEFT: Direction.LEFT,
-    KEY_RIGHT: Direction.RIGHT,
-    KEY_UP: Direction.UP,
-    KEY_DOWN: Direction.DOWN
-}
 
 
 def Setup_Logging():
@@ -77,14 +65,6 @@ def Setup_Logging():
 
 logger = Setup_Logging()
 
-# Setup for Curses
-if CURSES:
-    TIMEOUT = int(config['CURSES']['TIMEOUT'])
-    HEAD_CHR = config['CURSES']['HEAD_CHR']
-    BODY_CHR = config['CURSES']['BODY_CHR']
-    TAIL_CHR = config['CURSES']['TAIL_CHR']
-    FOOD_CHR = config['CURSES']['FOOD_CHR']
-
 
 # Setup for Pygame
 if PYGAME:
@@ -122,14 +102,14 @@ class Game:
         agent : BaseSnake = BaseSnake,
         log : bool = LOGGING,
         debug : bool = DEBUG,
-        # board : Union(curses.newwin, pygame.display) = None,
-        board : curses.newwin or pygame.display = None,
+        show_display : bool = True,
     ) -> None:
         """Initialize the game"""
 
         # Initialize the game's environment (board)
         self.board_width = width
         self.board_height = height
+        self.show_display = show_display
 
         # Initialize the game's agent
         self.agent = agent(height, width, random_init, log, debug)
@@ -150,23 +130,8 @@ class Game:
         # But then I decided to just place it randomly
         self.agent._place_food()
 
-        # Initialize the board
-        self.board = board
-
-        # Initialize the curses board
-        if CURSES:
-            # Set the game speed
-            self.board.timeout(TIMEOUT)
-            self.timeout = TIMEOUT
-
-            # Activate keypad mode
-            self.board.keypad(1)
-
-            # Draw the game board border
-            self.board.border(0)
-
         # Initialize the pygame board
-        if PYGAME:
+        if show_display:
 
             # Set the game display
             self.display = pygame.display.set_mode((self.board_width * BLOCKSIZE, self.board_height * BLOCKSIZE))
@@ -176,33 +141,6 @@ class Game:
 
             # Game clock
             self.clock = pygame.time.Clock()
-
-    # Rendering the Game Board on terminal using curses
-    def render_curses(self) -> None:
-
-        # Rendering the Head
-        self.board.addstr(self.agent.head.y, self.agent.head.x, HEAD_CHR)
-
-        # Rendering the Body
-        if len(self.agent.body) > 1:
-            for i in range(len(self.agent.body) - 1):
-                self.board.addstr(self.agent.body[i].y, self.agent.body[i].x, BODY_CHR)
-
-        # Rendering the Tail
-        if len(self.agent.body) > 0:
-            self.board.addstr(list(self.agent.body)[-1].y, list(self.agent.body)[-1].x, TAIL_CHR)
-        # if self.agent.tail:
-        #     self.board.addstr(self.agent.tail.y, self.agent.tail.x, TAIL_CHR)
-
-        # Rendering the Food
-        self.board.addstr(self.agent.food.y, self.agent.food.x, FOOD_CHR)
-
-        # Render the score counter (for me it is the lenght counter)
-        # self.board.addstr(0, 5, "Length: " + str(self.agent.score))
-        self.board.addstr(0, 5, str(self.agent.score))
-
-        # Refresh the board
-        self.board.refresh()
 
     # Rendering the Game Board using pygame
     def render_pygame(self) -> None:
@@ -246,11 +184,10 @@ class Game:
         # Snake details
         details += 'Snake Details: ' + str(self.agent)
 
-        # Drawing engine
-        if CURSES:
-            details += '\nDrawing Engine: Curses\n'
-        elif PYGAME:
+        if self.show_display:
             details += '\nDrawing Engine: PyGame\n'
+        else:
+            details += '\nDrawing Engine: None\n'
 
         return details
 
@@ -267,36 +204,10 @@ class Game:
         try:
             while True:
 
-                if CURSES:
-                    # Clear the screen and render the game board
-                    self.board.clear()
-                    self.board.border(0)
-
-                    # Render the game board
-                    try:
-                        self.render_curses()
-                    except Exception as e:
-                        logger.error(e)
-                        pass
-
-                    # Get the key pressed by the user
-                    key = self.board.getch()
-
-                    # Check if the user pressed the exit key
-                    if key == ord('q'):
-                        break
-
                 # Check if the user pressed the arrow key
                 # If yes then update the direction of the snake
                 # Check for collisions
                 try:
-                    # if key in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
-                    #     game.agent.move(key_to_direction[key])
-
-                    # # If no direction key is pressed, continue moving in the same direction
-                    # elif key == -1:
-                    #     # print(game.agent)
-                    #     game.agent.move(game.agent.direction)
 
                     # Move the snake
                     if not self.agent.finder.path_exists():
@@ -354,16 +265,10 @@ class Game:
                         logger.info('Lap Time Exceeded!')
                     raise KeyboardInterrupt
 
-            # End the curses session
-            if CURSES:
-                curses.endwin()
-
             if self.logging:
                 logger.info(f'Game Over - Your score is: {self.agent.score}')
 
         except KeyboardInterrupt:
-            if CURSES:
-                curses.endwin()
             if self.logging:
                 logger.info(f'Game Over - Your score is: {self.agent.score}')
 
@@ -372,43 +277,21 @@ class Game:
         return self.score
 
 
-def Initialize_Game(agent, display=None):
-
-    # Initialize the Game with no display
-    if display is None:
-        game = Game(random_init=False, agent=agent, log=LOGGING)
-        if game.logging:
-            logger.info('No Drawing engine is selected')
-            logger.info("Game has been initialized")
-
-    # Initialize the Curse Drawing Engine
-    elif CURSES:
-
-        # Initialize the curses library
-        curses.initscr()
-
-        # Disable the echoing of keys to the screen
-        curses.noecho()
-
-        # Make the cursor invisible
-        curses.curs_set(0)
-
-        # Create the game board window
-        board = curses.newwin(B_HEIGHT, B_WIDTH, 0, 0)
-
-        # Initialize the Game
-        game = Game(agent=agent, board=board)
-        if game.logging:
-            logger.info('Curses is selected as the drawing engine')
-            logger.info("Game has been initialized")
+def Initialize_Game(agent):
 
     # Initialize the Pygame Drawing Engine
-    elif PYGAME:
-
+    if PYGAME:
         # Initialize the Game
-        game = Game(random_init=False, agent=agent, log=LOGGING)
+        game = Game(random_init=False, agent=agent, log=LOGGING, debug=DEBUG, show_display=True)
         if game.logging:
             logger.info('PyGame is selected as the drawing engine')
+            logger.info("Game has been initialized")
+
+    # Initialize the Game with no display
+    else:
+        game = Game(random_init=False, agent=agent, log=LOGGING, debug=DEBUG, show_display=False)
+        if game.logging:
+            logger.info('No Drawing engine is selected')
             logger.info("Game has been initialized")
 
     return game
