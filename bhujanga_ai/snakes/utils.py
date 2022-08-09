@@ -75,6 +75,11 @@ class Finder:
             current = current.parent
             path.append(current)
 
+        if self.start not in path:
+            path.append(self.start)
+        if self.debug:
+            logger.debug(f"Path from {self.start} to {self.end}: {path[::-1]}")
+
         # Convert path to list of directions
         directions = {}
         for i in range(len(path) - 1):
@@ -120,9 +125,6 @@ class BFS_Finder(Finder):
         allowed_neighbors = [x for x in neighbors]
         for point in neighbors:
 
-            if self.debug and point == self.snake.tail:
-                logger.debug('Tail is a neighbor to point {}'.format(current))
-
             #  Remove if out of bounds
             if point.x not in x_range:
                 allowed_neighbors.remove(point)
@@ -144,8 +146,8 @@ class BFS_Finder(Finder):
             elif point in self.snake.body:
                 allowed_neighbors.remove(point)
 
-        if self.debug:
-            logger.debug(f'Neighbor for point {current} : {allowed_neighbors}')
+        # if self.debug:
+        #     logger.debug(f'Neighbor for point {current} : {allowed_neighbors}')
 
         return allowed_neighbors
 
@@ -155,32 +157,33 @@ class BFS_Finder(Finder):
             logger.debug('Starting BFS')
             logger.debug(f'Finding path from Start : {self.start} to End : {self.end}')
             logger.debug(f'Excluding Tail : {exclude_tail}')
-            logger.debug(f'Walls are : {list(self.snake.body)[:-1]}')
+            # logger.debug(f'Walls are : {list(self.snake.body)[:-1]}')
 
         # Initialize the queue and visited list
         self.queue = deque()
         self.visited = []
+        self.path = {}
 
         # Mark the start node as visited and enqueue it
         self.queue.append(self.start)
 
-        if self.debug:
-            logger.debug(f'Initial queue - {self.queue}')
+        # if self.debug:
+        #     logger.debug(f'Initial queue - {self.queue}')
 
         while self.queue:
 
             # Dequeue a vertex from queue
             current: Point = self.queue.popleft()
-            if self.debug:
-                logger.debug(f'Current point: ({current.x}, {current.y})')
+            # if self.debug:
+            #     logger.debug(f'Current point: ({current.x}, {current.y})')
 
             # Get all adjacent vertices of the dequeued vertex
             if current not in self.visited:
                 self.visited.append(current)
 
                 # Get neighbours from grid
-                if self.debug:
-                    logger.debug(f'Getting neighbors for point: {current}')
+                # if self.debug:
+                #     logger.debug(f'Getting neighbors for point: {current}')
 
                 for neighbour in self.get_neighbors(current, exclude_tail):
                     neighbour: Point
@@ -189,7 +192,7 @@ class BFS_Finder(Finder):
                         self.queue.append(neighbour)
 
                         if neighbour == self.end:
-                            self.end = neighbour
+                            self.end.parent = current
 
                             if self.debug:
                                 logger.debug('Found path')
@@ -197,5 +200,8 @@ class BFS_Finder(Finder):
                             self.get_path_directions()
                             return
 
-            if self.debug:
-                logger.debug(f'While loop running - Total visited - {len(self.visited)}')
+            # if self.debug:
+            #     logger.debug(f'While loop running - Total visited - {len(self.visited)}')
+
+        if self.debug:
+            logger.debug('No path found')

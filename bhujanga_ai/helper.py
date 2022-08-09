@@ -71,6 +71,10 @@ class Point:
     def copy(self) -> 'Point':
         return Point(self.x, self.y)
 
+    # Distance function
+    def distance(self, other: 'Point') -> int:
+        return abs(self.x - other.x) + abs(self.y - other.y)
+
 
 # Direction Class
 class Direction:

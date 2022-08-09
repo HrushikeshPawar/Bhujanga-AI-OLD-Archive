@@ -73,6 +73,7 @@ class BaseSnake:
         self.board_height = height
         self.logging = log
         self.debug = debug
+        self.name = 'Base Snake'
 
         # Initialize the snake's initial position (snake's head)
         # Here we can take two approaches:
