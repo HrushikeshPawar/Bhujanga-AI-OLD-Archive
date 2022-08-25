@@ -122,6 +122,22 @@ class BaseSnake:
             if self.food not in self.body and self.food != self.head:
                 break
 
+    # Reset the snake's environment (board)
+    def reset(self, random_init : bool = False) -> None:
+        # Initialize the snake's initial position (snake's head)
+        # Here we can take two approaches:
+        # 1. Random Initialization
+        # 2. Fixed Initialization
+        self._initialize_snake(random_init)
+
+        # Place the food at random location on the board
+        # I first thought of placing the food at random location as well as fixed location on the board
+        # But then I decided to just place it randomly
+        self._place_food()
+
+        # Initialize the snake's score
+        self.score = len(self.body)
+
     # Move the snake in given direction
     def move(self, direction : Direction) -> None:
         """Move the snake in given direction"""
@@ -139,7 +155,6 @@ class BaseSnake:
         # Check if the given direction is not the opposite of the current direction
         elif direction == -self.direction:
             raise ValueError("Direction must be different from the opposite of the current direction")
-            pass
 
         else:
             # Update the snake's direction
@@ -182,13 +197,11 @@ class BaseSnake:
         # Otherwise it may wrongly detect the snake's head as on the snake's body
         # Specifically the tail point
         if self.head in self.body or self.head == self.tail:
-            # raise ValueError("Snake's head is on the snake's body")
-            # if self.debug:
-            print(f'Debug is {self.debug}')
-            logger.debug("Body Collision Detected")
-            logger.debug(f"Head Position: {self.head}")
-            logger.debug(f"Body Position: {self.body}")
-            logger.debug(f"Tail Position: {self.tail}")
+            if self.debug:
+                logger.debug("Body Collision Detected")
+                logger.debug(f"Head Position: {self.head}")
+                logger.debug(f"Body Position: {self.body}")
+                logger.debug(f"Tail Position: {self.tail}")
             raise BodyCollisionError
 
     # Printing the Snake Object

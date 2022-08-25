@@ -2,6 +2,8 @@
 This will contain all the requried helper functions and classes
 """
 # /bhujanga_ai/helper.py
+import matplotlib.pyplot as plt
+from IPython import display
 
 
 # Error Classes
@@ -75,6 +77,10 @@ class Point:
     def distance(self, other: 'Point') -> int:
         return abs(self.x - other.x) + abs(self.y - other.y)
 
+    # Move in give direction
+    def move(self, direction: 'Direction') -> 'Point':
+        return self + direction
+
 
 # Direction Class
 class Direction:
@@ -109,3 +115,24 @@ class Direction:
     # Multiplication of a scalar by a point object
     def __rmul__(self, other: int) -> Point:
         return Point(self.value.x * other, self.value.y * other)
+
+
+# Plotting Function
+def plot(scores, mean_scores, fpath, save_plot=False):
+
+    display.clear_output(wait=True)
+    display.display(plt.gcf())
+    plt.clf()
+    plt.title('Training...')
+    plt.xlabel('Number of Games')
+    plt.ylabel('Score')
+    plt.plot(scores, color='red')
+    plt.plot(mean_scores, color='green')
+    plt.ylim(ymin=0)
+    plt.text(len(scores) - 1, scores[-1], str(scores[-1]))
+    plt.text(len(mean_scores) - 1, mean_scores[-1], str(mean_scores[-1]))
+    plt.show(block=False)
+    plt.pause(.1)
+
+    if save_plot:
+        plt.savefig(fpath)
