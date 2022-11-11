@@ -118,12 +118,12 @@ class Direction:
 
 
 # Plotting Function
-def plot(scores, mean_scores, fpath, save_plot=False):
+def plot(scores, mean_scores, fpath, title, save_plot=False):
 
     display.clear_output(wait=True)
     display.display(plt.gcf())
     plt.clf()
-    plt.title('Training...')
+    plt.title(title)
     plt.xlabel('Number of Games')
     plt.ylabel('Score')
     plt.plot(scores, color='red')
