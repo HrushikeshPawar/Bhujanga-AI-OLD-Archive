@@ -97,7 +97,6 @@ if PYGAME:
     font = pygame.font.Font(FONT, 20)
 
 
-# TODO: The Game (Generic) Class
 # The game class should be a generic class that can be used to create any game.
 # The game class should have the following attributes:
 #   1. The game board.
