@@ -56,7 +56,7 @@ def Setup_Logging():
 
     logger.addHandler(file_handler_LOG)
     logger.addHandler(file_handler_DEBUG)
-    logger.addHandler(stream)
+    # logger.addHandler(stream)
 
     return logger
 
@@ -112,7 +112,7 @@ class SnakeWorldEnv(Env):
         self.observation_space = spaces.Box(
             low=0,
             high=2,
-            shape=(8,),
+            shape=(20,),
             dtype='int8'
         )
 
@@ -130,6 +130,7 @@ class SnakeWorldEnv(Env):
         # Initialize the render mode
         assert render_mode in self.metadata['render_modes'], f'Invalid render mode: {render_mode}' or render_mode is None
         self.render_mode = render_mode
+        print(self.board_width, self.board_height)
         self.renderer = SnakeGameRenderer(self.board_width, self.board_height)
 
     # Place the food on the board
@@ -137,13 +138,14 @@ class SnakeWorldEnv(Env):
         # self.food.position = None
         logger.debug('Placing new food')
         logger.debug(f'Old position food at: {self.food.position}')
+        self.food._place_food()
         while self.food.position is None or self.food.position in self.snake.body or self.food.position == self.snake.head:
             self.food._place_food()
 
         logger.debug(f'New position food at: {self.food.position}')
 
     # Reset the environment
-    def reset(self, seed: Union[None, int] = None) -> List[int]:
+    def reset(self, seed: Union[None, int] = None) -> Tuple[np.ndarray, dict]:
 
         # Set the seed
         super().reset(seed=seed)
@@ -175,6 +177,22 @@ class SnakeWorldEnv(Env):
         # Extend the observation for the LEFT direction
         observation.extend(self._get_observation_for_direction(Direction.LEFT))
 
+        # Add the direction the snake is moving in
+        observation.extend([
+            self.snake.direction == Direction.UP,
+            self.snake.direction == Direction.RIGHT,
+            self.snake.direction == Direction.DOWN,
+            self.snake.direction == Direction.LEFT
+        ])
+
+        # Add the food position relative to the snake's head
+        observation.extend([
+            self.food.position.x < self.snake.head.x,
+            self.food.position.x > self.snake.head.x,
+            self.food.position.y < self.snake.head.y,
+            self.food.position.y > self.snake.head.y
+        ])
+
         if self.render_mode == "human":
             self._render_frame()
 
@@ -191,16 +209,19 @@ class SnakeWorldEnv(Env):
 
         # Check if the point is in the body
         if point in self.snake.body:
-            return [0, 1]
+            return [1, 0, 0]
         # Check if the point is the food
         elif point == self.food.position:
-            return [1, 0]
+            return [0, 1, 0]
+        # Check if the point is out of bounds
+        elif point.x not in range(self.board_width) or point.y not in range(self.board_height):
+            return [0, 0, 1]
         # Else it is nothing
         else:
-            return [0, 0]
+            return [0, 0, 0]
 
     # Step the environment
-    def step(self, action: int) -> Tuple[List[int], float, bool, bool, Dict[str, Any]]:
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         # Get the direction from the action
         direction = self.action_to_direction[action]
 
@@ -225,6 +246,13 @@ class SnakeWorldEnv(Env):
 
         # If the move count is greater than the max moves, truncate the episode
         truncated = True if self.move_count > self.board_height * self.board_width else False
+        if truncated:
+            logger.debug(f'Truncating episode. The snake has made {self.move_count} moves')
+
+        truncated = True if len(self.snake) == self.board_height * self.board_width - 1 else False
+        if truncated:
+            logger.debug(f'Truncating episode. The snake has made {self.move_count} moves')
+            reward = 100
 
         return observation, reward, terminated, truncated, info
 
@@ -278,6 +306,9 @@ class SnakeWorldEnv(Env):
             self.snake.score += 1
             self.snake.tail: Point = self.snake.body.pop()
             self.snake.body.append(self.snake.tail.copy())
+
+            # Reset the move count
+            self.move_count = 0
 
             # Place the food at random location on the board
             logger.debug("Placing the food at random location on the board")

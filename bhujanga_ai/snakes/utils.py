@@ -216,6 +216,8 @@ class BFS_Finder(Finder):
 
 # Neural Network for Basic Q-Learning Agent
 class Q_Network_Basic(Module):
+
+    # Initialize the network
     def __init__(self, input_size: int, hidden_sizes: list[int], output_size: int) -> None:
 
         # Initialize the Super Class
@@ -279,7 +281,7 @@ class Q_Network_Basic(Module):
         torch.save(state, fpath)
 
     # Load Checkpoints
-    def load_checkPoints(self, model, trainer, checkpoint_name) -> None:
+    def load_checkPoints(self, model: 'Q_Network_Basic', trainer: 'Q_Trainer_Basic', checkpoint_name: str) -> None:
         """
         Load the model
         """

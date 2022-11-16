@@ -56,7 +56,7 @@ def Setup_Logging():
 
     logger.addHandler(file_handler_LOG)
     logger.addHandler(file_handler_DEBUG)
-    logger.addHandler(stream)
+    # logger.addHandler(stream)
 
     return logger
 
@@ -107,7 +107,7 @@ class Snake:
         self.body = deque()
         self.tail = None
 
-        logger.info(f'Snake initialized at {self.head} moving {self.direction}')
+        logger.debug(f'Snake initialized at {self.head} moving {self.direction}')
 
     # Reset the snake
     def reset(self) -> None:
@@ -115,11 +115,11 @@ class Snake:
         # Here we can take two approaches:
         # 1. Random Initialization
         # 2. Fixed Initialization
-        logger.info('Resetting the snake')
+        logger.debug('Resetting the snake')
         self.__setup_snake()
 
         # Initialize the snake's score
-        self.score      = len(self.body)
+        self.score      = 0
         self.is_alive   = True
 
     # Printing the Snake Object
@@ -131,6 +131,10 @@ class Snake:
         # Creates a deepcopy of the snake
         agent = deepcopy(self)
         return agent
+
+    # Lenght of the Snake
+    def __len__(self) -> int:
+        return len(self.body) + 1
 
 
 # The Food Class

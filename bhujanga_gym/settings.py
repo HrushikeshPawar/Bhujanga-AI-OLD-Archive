@@ -1,15 +1,14 @@
 from os.path import join as join_path
 
-BOARD_WIDTH         = 20
-BOARD_HEIGHT        = 20
-PYGAME              = False
+BOARD_WIDTH         = 6
+BOARD_HEIGHT        = 6
 
 
 # [PYGAME]
 # Define Constants
 FONT        = join_path("bhujanga_gym", "assets", "Lora-Regular.ttf")
 BLOCKSIZE   = 20
-SPEED       = 5
+SPEED       = 200
 BORDER      = 3
 
 

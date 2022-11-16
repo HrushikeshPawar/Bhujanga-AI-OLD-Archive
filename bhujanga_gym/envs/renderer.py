@@ -25,7 +25,6 @@ class SnakeGameRenderer:
         # Setup the pygame window
         # Set the game display
         pygame.init()
-        print(f'\n\n{self.board_width} {self.board_height} {self.block_size}\n\n')
         self.display = pygame.display.set_mode(size=(self.board_width * block_size, self.board_height * block_size))
 
         # Set the game caption
