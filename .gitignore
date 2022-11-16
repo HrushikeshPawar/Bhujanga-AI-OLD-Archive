@@ -164,3 +164,5 @@ cython_debug/
 *.png
 *.pth
 TBRuns
+models
+charts
