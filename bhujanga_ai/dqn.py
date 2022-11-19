@@ -6,6 +6,8 @@ import random
 from configparser import ConfigParser
 from datetime import datetime
 import pygame
+from typing import Optional
+import json
 
 import numpy as np
 # Import the torch libs
@@ -17,6 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from bhujanga_gym.envs.snake_world import SnakeWorldEnv
+from bhujanga_gym.settings import BOARD_WIDTH, BOARD_HEIGHT
 
 # Import the QNet and Replay Memory
 from .utils import QNetwork, ReplayMemory
@@ -40,9 +43,8 @@ EPS_DECAY       = float(config['DQN']['epsilon_decay'])
 TOTAL_GAMES     = int(config['DQN']['total_games'])
 TARGET_UPDATE_FREQ  = int(config['DQN']['target_update_freq'])
 HIDDEN_LAYER_SIZES  = [int(x) for x in config['DQN']['hidden_layer_sizes'].split(',')]
-
-f_name = os.path.join('charts', 'dqn')
-writter = SummaryWriter(f_name)
+CHECK_POINT_FREQ    = int(config['DQN']['checkpoint_freq'])
+TBOARD = bool(int(config['DQN']['tensorboard']))
 
 
 # Setup Logging
@@ -104,8 +106,12 @@ class DQNAgent:
         eps_decay: float = EPS_DECAY,
         total_games: int = TOTAL_GAMES,
         target_update_freq: int = TARGET_UPDATE_FREQ,
-        hidden_layer_sizes: list = HIDDEN_LAYER_SIZES
+        hidden_layer_sizes: list = HIDDEN_LAYER_SIZES,
+        addon: Optional[str] = 'basic'
     ):
+
+        global MODEL_NAME
+        MODEL_NAME = self.get_name(addon)
 
         # Set the seed
         self.seed = seed
@@ -154,12 +160,20 @@ class DQNAgent:
         # Set the loss function
         self.loss_fn = MSELoss().to(self.model.device)
 
+        if TBOARD:
+            f_name = os.path.join('charts', 'dqn', MODEL_NAME)
+            self.writter = SummaryWriter(f_name)
+
     # Function to set the universal seed
     def setup_seed(self):
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed_all(self.seed)
         random.seed(self.seed)
         np.random.seed(self.seed)
+
+    # Function to create a name for the model
+    def get_name(self, addon: Optional[str] = 'basic'):
+        return f'[{datetime.now().strftime("%Y%m%d %H%M%S")}]-{BOARD_WIDTH}x{BOARD_HEIGHT}-{",".join([str(x) for x in HIDDEN_LAYER_SIZES])}-{BATCH_SIZE}-{LEARNING_RATE}-{DISCOUNT_FACTOR}-{TOTAL_GAMES}-{addon}'
 
     # Function to update the epsilon
     def update_epsilon(self):
@@ -219,9 +233,9 @@ class DQNAgent:
             target_Q_values[idx][actions[idx]] = Q_new
 
         # Summary writter every 100 games
-        if self.games_completed % 100 == 0:
-            writter.add_scalar('Loss', self.loss_fn(predicted_Q_values, target_Q_values), self.games_completed)
-            writter.add_scalar('Epsilon', self.eps, self.games_completed)
+        if self.games_completed % 100 == 0 and TBOARD:
+            self.writter.add_scalar('Loss', self.loss_fn(predicted_Q_values, target_Q_values), self.games_completed)
+            self.writter.add_scalar('Epsilon', self.eps, self.games_completed)
 
         # Remove the Gradient
         self.optimizer.zero_grad()
@@ -249,10 +263,11 @@ class DQNAgent:
             # Run the episode
             while True:
 
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        pygame.quit()
-                        raise SystemExit
+                if self.env.render_mode == 'human':
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            pygame.quit()
+                            raise SystemExit
 
                 # Get the action
                 action = self.get_action(torch.FloatTensor(state))
@@ -275,14 +290,19 @@ class DQNAgent:
                     break
 
                 # Tick
-                self.env.renderer.clock.tick(tick_speed)
+                if self.env.render_mode == 'human':
+                    self.env.renderer.clock.tick(tick_speed)
+
+            # Update the games completed
+            self.games_completed += 1
 
             # Update the target model
             if self.games_completed % self.target_update_freq == 0:
                 self.update_target_model()
 
-            # Update the games completed
-            self.games_completed += 1
+            # Save the checkpoint
+            if self.games_completed % CHECK_POINT_FREQ == 0:
+                self.save_checkpoint()
 
             # Train the model
             self.train_model()
@@ -293,20 +313,115 @@ class DQNAgent:
             # Logger
             logger.info(f'Game: {self.games_completed}, Epsilon: {self.eps}, Move Count: {total_move_count}, Score: {self.env.snake.score}')
 
+            # Summary writter to record score for every game
+            if TBOARD:
+                self.writter.add_scalar('Score', self.env.snake.score, self.games_completed)
+
         # Save the model
         try:
-            self.model.save_model(os.path.join('models', 'dqn'), f'[{datetime.now().strftime("%Y%m%d %H%M%S")}]-{self.env.board_width}x{self.env.board_height}-{",".join([str(x) for x in self.model.hidden_layer_sizes])}-{self.total_games}')
+            self.model.save_model(os.path.join('models', 'dqn'), MODEL_NAME)
         except Exception as e:
             logger.error(f'Error while saving the model: {e}')
             logger.debug('Model saved with name "model"')
             self.model.save_model(os.path.join('models', 'dqn'), 'model')
+
+    # Saving Check point
+    def save_checkpoint(self):
+
+        # First check if the directory exists
+        path = os.path.join('checkpoints', 'dqn', MODEL_NAME)
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        # Check if the folder has json file
+        if not os.path.exists(os.path.join(path, 'record.json')):
+            with open(os.path.join(path, 'record.json'), 'w') as f:
+                json.dump({}, f)
+
+        # Load the json file
+        with open(os.path.join(path, 'record.json'), 'r') as f:
+            record = json.load(f)
+
+        # Create name of the checkpoint using the game number
+        name = f'checkpoint_{self.games_completed}.pth'
+
+        # Save the model and target model
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'target_model_state_dict': self.target_model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': self.loss_fn,
+            'eps': self.eps,
+            'steps_done': self.steps_done,
+            'games_completed': self.games_completed,
+            'memory': self.memory,
+        }, os.path.join(path, name))
+
+        # Update the record
+        record[name] = {
+            'eps': self.eps,
+            'steps_done': self.steps_done,
+            'games_completed': self.games_completed
+        }
+
+        # Save the record
+        with open(os.path.join(path, 'record.json'), 'w') as f:
+            json.dump(record, f)
+
+        # Logging
+        logger.info(f'Checkpoint saved: {name}')
+
+    # Loading Check point
+    def load_checkpoint(self, checkpoint_name: str):
+
+        # First check if the directory exists
+        path = os.path.join('checkpoints', 'dqn', MODEL_NAME)
+
+        # Load the json file
+        with open(os.path.join(path, 'record.json'), 'r') as f:
+            record = json.load(f)
+
+        # Check if the checkpoint exists
+        if checkpoint_name not in record:
+            raise Exception('Checkpoint not found')
+
+        # Load the checkpoint
+        checkpoint = torch.load(os.path.join(path, checkpoint_name))
+
+        # Load the model and target model
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.target_model.load_state_dict(checkpoint['target_model_state_dict'])
+
+        # Load the optimizer
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        # Load the loss function
+        self.loss_fn = checkpoint['loss']
+
+        # Load the epsilon
+        self.eps = checkpoint['eps']
+
+        # Load the steps done
+        self.steps_done = checkpoint['steps_done']
+
+        # Load the games completed
+        self.games_completed = checkpoint['games_completed']
+
+        # Load the memory
+        self.memory = checkpoint['memory']
+
+        # logger
+        logger.info(f'Checkpoint loaded: {checkpoint_name}')
 
     # Load the trained model
     def load_trained_model(self, model_name: str):
 
         # Get details from the name
         if model_name != 'model':
-            _, dimensions, hidden_layer_sizes, _  = model_name.split('-')
+            try:
+                _, dimensions, hidden_layer_sizes, _, _  = model_name.split('-')
+            except ValueError:
+                _, dimensions, hidden_layer_sizes, _  = model_name.split('-')
 
             # Create the environment
             self.env.board_height = int(dimensions.split('x')[0])

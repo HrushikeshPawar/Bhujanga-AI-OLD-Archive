@@ -90,6 +90,7 @@ class SnakeWorldEnv(Env):
         # Initialize the board
         self.board_width = board_width
         self.board_height = board_height
+        self.total_points_to_earn = self.board_width * self.board_height - 2
 
         # Initialize the snake
         self.snake = Snake(board_width, board_height, random_init=random_init)
@@ -128,10 +129,10 @@ class SnakeWorldEnv(Env):
         self.direction_to_action = {val: key for key, val in self.action_to_direction.items()}
 
         # Initialize the render mode
-        assert render_mode in self.metadata['render_modes'], f'Invalid render mode: {render_mode}' or render_mode is None
+        assert render_mode in self.metadata['render_modes'] or render_mode is None, f'Invalid render mode: {render_mode}'
         self.render_mode = render_mode
-        print(self.board_width, self.board_height)
-        self.renderer = SnakeGameRenderer(self.board_width, self.board_height)
+        if render_mode == 'human':
+            self.renderer = SnakeGameRenderer(self.board_width, self.board_height)
 
     # Place the food on the board
     def _place_food(self):
@@ -225,34 +226,47 @@ class SnakeWorldEnv(Env):
         # Get the direction from the action
         direction = self.action_to_direction[action]
 
+        # Info dict
+        info = {
+            'collision': False,
+            'truncated': False
+        }
+
         # Move the snake and get reward
         try:
             reward = self._move_snake(direction)
         except BodyCollisionError:
             self.snake.is_alive = False
             reward = -1
+            info['collision'] = True
         except WallCollisionError:
             self.snake.is_alive = False
             reward = -1
+            info['collision'] = True
 
         # The output has to be a tuple
         # (observation, reward, terminated, truncated, info)
 
         # Get the observation
-        observation, info = self._get_observation()
+        observation, _ = self._get_observation()
 
         # Check if the snake is dead
         terminated = not self.snake.is_alive
 
         # If the move count is greater than the max moves, truncate the episode
-        truncated = True if self.move_count > self.board_height * self.board_width else False
-        if truncated:
+        if self.move_count > self.board_height * self.board_width:
             logger.debug(f'Truncating episode. The snake has made {self.move_count} moves')
+            reward = -1
+            truncated = True
+            info['truncated'] = True
 
-        truncated = True if len(self.snake) == self.board_height * self.board_width - 1 else False
-        if truncated:
+        elif len(self.snake) == self.board_height * self.board_width - 1:
             logger.debug(f'Truncating episode. The snake has made {self.move_count} moves')
             reward = 100
+            truncated = True
+
+        else:
+            truncated = False
 
         return observation, reward, terminated, truncated, info
 
