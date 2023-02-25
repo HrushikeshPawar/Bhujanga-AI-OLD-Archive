@@ -15,7 +15,6 @@ import numpy as np
 import torch
 from torch.nn import MSELoss
 from torch.optim import Adam
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from bhujanga_gym.envs.snake_world import SnakeWorldEnv
@@ -45,7 +44,6 @@ TARGET_UPDATE_FREQ  = int(config['DQN']['target_update_freq'])
 HIDDEN_LAYER_SIZES  = [int(x) for x in config['DQN']['hidden_layer_sizes'].split(',')]
 CHECK_POINT_FREQ    = int(config['DQN']['checkpoint_freq'])
 ALPHA           = float(config['DQN']['alpha'])
-TBOARD = bool(int(config['DQN']['tensorboard']))
 
 
 # Setup Logging
@@ -161,9 +159,9 @@ class DQNAgent:
         # Set the loss function
         self.loss_fn = MSELoss().to(self.model.device)
 
-        if TBOARD:
-            f_name = os.path.join('charts', 'dqn_per', MODEL_NAME)
-            self.writter = SummaryWriter(f_name)
+        # if TBOARD:
+        #     f_name = os.path.join('charts', 'dqn_per', MODEL_NAME)
+        #     self.writter = SummaryWriter(f_name)
 
     # Function to set the universal seed
     def setup_seed(self):
@@ -234,10 +232,10 @@ class DQNAgent:
             # Set this value in the target Q-Values
             target_Q_values[idx][actions[idx]] = Q_new
 
-        # Summary writter every 100 games
-        if TBOARD:
-            self.writter.add_scalar('Loss', self.loss_fn(predicted_Q_values, target_Q_values), self.games_completed)
-            self.writter.add_scalar('Epsilon', self.eps, self.games_completed)
+        ## Summary writter every 100 games
+        # if TBOARD:
+        #     self.writter.add_scalar('Loss', self.loss_fn(predicted_Q_values, target_Q_values), self.games_completed)
+        #     self.writter.add_scalar('Epsilon', self.eps, self.games_completed)
 
         # Remove the Gradient
         self.optimizer.zero_grad()
@@ -316,10 +314,10 @@ class DQNAgent:
             # Logger
             logger.info(f'Game: {self.games_completed}, Epsilon: {self.eps}, Move Count: {total_move_count}, Score: {self.env.snake.score}')
 
-            # Summary writter to record score for every game
-            if TBOARD:
-                self.writter.add_scalar('Score', self.env.snake.score, self.games_completed)
-                self.writter.add_scalar('Move Count', total_move_count, self.games_completed)
+            # # Summary writter to record score for every game
+            # if TBOARD:
+            #     self.writter.add_scalar('Score', self.env.snake.score, self.games_completed)
+            #     self.writter.add_scalar('Move Count', total_move_count, self.games_completed)
 
         # Save the model
         try:
