@@ -146,7 +146,7 @@ class SnakeWorldEnv(Env):
         logger.debug(f'New position food at: {self.food.position}')
 
     # Reset the environment
-    def reset(self, seed: Union[None, int] = None) -> Tuple[np.ndarray, dict]:
+    def reset(self, seed: Union[None, int] = None, options=None) -> Tuple[np.ndarray, dict]:
 
         # Set the seed
         super().reset(seed=seed)
