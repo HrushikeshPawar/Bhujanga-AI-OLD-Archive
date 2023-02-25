@@ -37,17 +37,11 @@ class UpdatedRewardWrapper(Wrapper):
         # Get the observation, reward, done, truncated and info
         obs, reward, done, trun, info = self.env.step(action)
 
-        # # Check if the collision took place
-        # if info['collision']:
-        #     reward = self.env.snake.score - self.env.total_points_to_earn
-        #     assert reward < 0
-
-        # # Check if the snake was truncated for over move count
-        # if info['truncated']:
-        #     reward = (self.env.snake.score - self.env.total_points_to_earn) * 10
-        #     assert reward < 0
-        if info['collision'] or info['truncated']:
+        if info['collision']:
             reward = -3
+
+        elif info['truncated']:
+            reward = -5
 
         elif self.env.snake.score >= min(self.env.board_height, self.env.board_width):
             if self.find_path_to_tail():
