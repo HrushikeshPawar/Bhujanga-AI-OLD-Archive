@@ -8,11 +8,11 @@ from datetime import datetime
 import pygame
 from typing import Optional
 import json
+from time import perf_counter
 
 import numpy as np
 # Import the torch libs
 import torch
-from gymnasium import Env
 from torch.nn import MSELoss
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
@@ -22,7 +22,7 @@ from bhujanga_gym.envs.snake_world import SnakeWorldEnv
 from bhujanga_gym.settings import BOARD_WIDTH, BOARD_HEIGHT
 
 # Import the QNet and Replay Memory
-from .utils import QNetwork, ReplayMemory
+from .utils import QNetwork, ReplayMemory, PrioritizedReplayMemory
 
 config = ConfigParser()
 config.read(os.path.join('bhujanga_ai', 'settings.ini'))
@@ -44,6 +44,7 @@ TOTAL_GAMES     = int(config['DQN']['total_games'])
 TARGET_UPDATE_FREQ  = int(config['DQN']['target_update_freq'])
 HIDDEN_LAYER_SIZES  = [int(x) for x in config['DQN']['hidden_layer_sizes'].split(',')]
 CHECK_POINT_FREQ    = int(config['DQN']['checkpoint_freq'])
+ALPHA           = float(config['DQN']['alpha'])
 TBOARD = bool(int(config['DQN']['tensorboard']))
 
 
@@ -161,7 +162,7 @@ class DQNAgent:
         self.loss_fn = MSELoss().to(self.model.device)
 
         if TBOARD:
-            f_name = os.path.join('charts', 'dqn', MODEL_NAME)
+            f_name = os.path.join('charts', 'dqn_per', MODEL_NAME)
             self.writter = SummaryWriter(f_name)
 
     # Function to set the universal seed
@@ -200,6 +201,7 @@ class DQNAgent:
         self.target_model.load_state_dict(self.model.state_dict())
 
     # Function to train the model
+    # @profile
     def train_model(self):
 
         # Get the sample from the memory
@@ -233,7 +235,7 @@ class DQNAgent:
             target_Q_values[idx][actions[idx]] = Q_new
 
         # Summary writter every 100 games
-        if self.games_completed % 100 == 0 and TBOARD:
+        if TBOARD:
             self.writter.add_scalar('Loss', self.loss_fn(predicted_Q_values, target_Q_values), self.games_completed)
             self.writter.add_scalar('Epsilon', self.eps, self.games_completed)
 
@@ -263,6 +265,7 @@ class DQNAgent:
             # Run the episode
             while True:
 
+                # This is placed so that pygames doesn't crash
                 if self.env.render_mode == 'human':
                     for event in pygame.event.get():
                         if event.type == pygame.QUIT:
@@ -274,7 +277,6 @@ class DQNAgent:
 
                 # Take the action
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
-                total_move_count += 1
 
                 # Store the transition in the memory
                 self.memory.push(state=state, action=action, next_state=next_state, reward=reward, done=terminated or truncated)
@@ -282,8 +284,9 @@ class DQNAgent:
                 # Move to the next state
                 state = next_state
 
-                # Update the steps done
+                # Update the steps done and increment the move count
                 self.steps_done += 1
+                total_move_count += 1
 
                 # If the episode is done, break the loop
                 if terminated or truncated:
@@ -316,6 +319,7 @@ class DQNAgent:
             # Summary writter to record score for every game
             if TBOARD:
                 self.writter.add_scalar('Score', self.env.snake.score, self.games_completed)
+                self.writter.add_scalar('Move Count', total_move_count, self.games_completed)
 
         # Save the model
         try:
@@ -421,7 +425,7 @@ class DQNAgent:
             try:
                 _, dimensions, hidden_layer_sizes, _, _  = model_name.split('-')
             except ValueError:
-                _, dimensions, hidden_layer_sizes, _  = model_name.split('-')
+                _, dimensions, hidden_layer_sizes, _, _, _, _, _  = model_name.split('-')
 
             # Create the environment
             self.env.board_height = int(dimensions.split('x')[0])
@@ -473,4 +477,3 @@ class DQNAgent:
 
         # Logger
         logger.info(f'Score: {self.env.snake.score}')
-        print(f'Score: {self.env.snake.score}')

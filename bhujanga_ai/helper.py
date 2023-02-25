@@ -228,7 +228,7 @@ class BFS_Finder(Finder):
             neighbors = [pos + direction for direction in directions]
 
         # Remove invalid neighbors
-        allowed_neighbors = deepcopy(neighbors)
+        allowed_neighbors = [neighbor for neighbor in neighbors]
         for point in neighbors:
 
             #  Remove if out of bounds
@@ -237,7 +237,7 @@ class BFS_Finder(Finder):
 
             # Remove if it is in snakes body
             elif exclude_tail:
-                body = deepcopy(self.env.snake.body)
+                body = self.env.snake.body.copy()
                 body.pop()
                 if point in body:
                     allowed_neighbors.remove(point)
