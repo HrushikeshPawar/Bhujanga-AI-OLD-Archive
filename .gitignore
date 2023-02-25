@@ -166,3 +166,4 @@ cython_debug/
 TBRuns
 models
 charts
+*.prof

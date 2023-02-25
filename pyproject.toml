@@ -14,12 +14,15 @@ torch = "^1.12.1"
 torchvision = "^0.13.1"
 gymnasium = "^0.26.3"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"
 loguru = "^0.6.0"
 flake8 = "^4.0.1"
 tensorboard = "^2.11.0"
 torch-tb-profiler = "^0.4.0"
+snakeviz = "^2.1.1"
+pyinstrument = "^4.4.0"
+line-profiler = "^4.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
